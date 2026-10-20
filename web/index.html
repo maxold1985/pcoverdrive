@@ -22,7 +22,7 @@ const filtered=list.filter(g=>(!platform||g.platform===platform)&&[g.title,g.id,
 filtered.sort((a,b)=>sort==='rating'?(b.metacritic||0)-(a.metacritic||0):sort==='newest'?String(b.releaseDate||'').localeCompare(String(a.releaseDate||'')):String(a.title).localeCompare(String(b.title)));
 $('status').textContent=`${filtered.length} jogos encontrados de ${list.length}`;
 const fragment=document.createDocumentFragment();
-for(const g of filtered.slice(0,300)){
+for(const g of filtered){
 const card=document.createElement('article');card.className='card';
 const cover=safeUrl(g.art?.cover);if(cover){const img=document.createElement('img');img.loading='lazy';img.src=cover;img.alt='';card.append(img)}
 const body=document.createElement('div');body.className='body';const title=document.createElement('h3');title.textContent=g.title;
