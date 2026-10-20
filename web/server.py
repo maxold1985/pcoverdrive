@@ -45,7 +45,12 @@ def run_download(job_id, url, game_id):
     target = DOWNLOAD_DIR / game_id
     try:
         target.mkdir(parents=True, exist_ok=True)
-        req = urllib.request.Request(url, headers={'User-Agent':'OverdrivePC/1.0'})
+        req = urllib.request.Request(url, headers={
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Encoding': 'identity',
+            'Connection': 'close'
+        })
         # No redirects to non-HTTPS protocols, private addresses or local endpoints.
         with urllib.request.urlopen(req, timeout=35) as response:
             final = urlparse(response.geturl())
@@ -73,6 +78,9 @@ def run_download(job_id, url, game_id):
                 raise
             job['status'] = 'concluido'
             job['file'] = str(dest)
+    except urllib.error.HTTPError as exc:
+        job['status'] = 'erro'
+        job['error'] = f'HTTP {exc.code} ({exc.reason}) em {exc.url}. Abra a fonte no navegador caso exija sessao.'
     except Exception as exc:
         job['status'] = 'erro'
         job['error'] = str(exc)
