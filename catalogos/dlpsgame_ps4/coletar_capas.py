@@ -74,6 +74,9 @@ def main():
     if not isinstance(records, list):
         ap.error("Catalogo invalido")
     if args.importar_json:
+        def page_key(value):
+            parsed = urlsplit(value)
+            return (parsed.hostname or "").lower().removeprefix("www.") + parsed.path.rstrip("/").lower()
         imported = json.loads(args.importar_json.read_text(encoding="utf-8-sig"))
         if not isinstance(imported, list):
             ap.error("Arquivo deve conter uma lista JSON")
@@ -86,12 +89,12 @@ def main():
                 continue
             parts = urlsplit(cover)
             if parts.scheme == "https" and parts.hostname:
-                images[url.rstrip("/")] = cover
+                images[page_key(url)] = cover
         updated = 0
         for record in records:
             if not isinstance(record, dict):
                 continue
-            cover = images.get(str(record.get("url", "")).rstrip("/"))
+            cover = images.get(page_key(str(record.get("url", ""))))
             if cover and not record.get("imagem"):
                 record["imagem"] = cover
                 updated += 1
