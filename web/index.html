@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Overdrive PC — Catálogo</title>
+<style>
+:root{font-family:system-ui;color:#eee;background:#101116}body{margin:0;padding:24px;max-width:1450px;margin:auto}h1{margin-bottom:6px}p{color:#aeb3c2}.tools{display:flex;gap:12px;flex-wrap:wrap;margin:24px 0}input,select{background:#222633;color:white;border:1px solid #454958;border-radius:8px;padding:12px;font:inherit}input{flex:1;min-width:220px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px}.card{background:#1c202b;border:1px solid #323746;border-radius:12px;overflow:hidden}.card img{width:100%;aspect-ratio:3/4;object-fit:cover;background:#292e39}.body{padding:12px}.body h3{font-size:15px;margin:0 0 8px}.body p{font-size:12px;margin:5px 0}.btn{display:inline-block;color:#b3d7ff;margin-top:10px;cursor:pointer;background:none;border:0;padding:0;font:inherit}dialog{background:#1c202b;color:white;border:1px solid #555;border-radius:12px;max-width:650px;width:90%}dialog::backdrop{background:#000b}a{color:#9dccff}
+</style>
+<h1>Overdrive PC</h1><p>Catálogo web local para Windows. Os links externos dependem da disponibilidade e das permissões de cada provedor.</p>
+<div class="tools"><input id="search" placeholder="Pesquisar título, ID, desenvolvedor"><select id="platform"><option value="">Todas plataformas</option><option>ps5</option><option>ps4</option></select><select id="sort"><option value="title">Nome</option><option value="rating">Avaliação</option><option value="newest">Lançamento</option></select></div>
+<p id="status">Carregando catálogo...</p><div id="grid" class="grid"></div><dialog id="details"><button id="close">Fechar</button><div id="detail"></div></dialog>
+<script type="module">
+import {games} from '../app/data/catalog.js';
+const $=id=>document.getElementById(id);
+const safeUrl=value=>{try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:null}catch{return null}};
+const list=Array.isArray(games)?games:[];
+function draw(){
+const q=$('search').value.toLocaleLowerCase('pt-BR'),platform=$('platform').value,sort=$('sort').value;
+const filtered=list.filter(g=>(!platform||g.platform===platform)&&[g.title,g.id,g.developer].join(' ').toLocaleLowerCase('pt-BR').includes(q));
+filtered.sort((a,b)=>sort==='rating'?(b.metacritic||0)-(a.metacritic||0):sort==='newest'?String(b.releaseDate||'').localeCompare(String(a.releaseDate||'')):String(a.title).localeCompare(String(b.title)));
+$('status').textContent=`${filtered.length} jogos encontrados de ${list.length}`;
+const fragment=document.createDocumentFragment();
+for(const g of filtered.slice(0,300)){
+const card=document.createElement('article');card.className='card';
+const cover=safeUrl(g.art?.cover);if(cover){const img=document.createElement('img');img.loading='lazy';img.src=cover;img.alt='';card.append(img)}
+const body=document.createElement('div');body.className='body';const title=document.createElement('h3');title.textContent=g.title;
+const meta=document.createElement('p');meta.textContent=`${String(g.platform||'').toUpperCase()} · ${g.sizeGb??'?'} GB · ${g.metacritic??'—'}/100`;
+const btn=document.createElement('button');btn.className='btn';btn.textContent='Detalhes e fontes';btn.onclick=()=>show(g);
+body.append(title,meta,btn);card.append(body);fragment.append(card)}
+$('grid').replaceChildren(fragment);
+}
+async function show(g){
+const d=$('detail');d.replaceChildren();const h=document.createElement('h2');h.textContent=g.title;d.append(h);
+const p=document.createElement('p');p.textContent=`ID: ${g.id} · Fontes: ${(g.providers||[]).join(', ')||'não informadas'}`;d.append(p);
+try{
+const response=await fetch(`../app/data/releases/${encodeURIComponent(g.id)}.json`);
+if(response.ok){const releases=await response.json();const pre=document.createElement('pre');pre.style.whiteSpace='pre-wrap';pre.style.overflowWrap='anywhere';pre.textContent='Metadados das versões: '+JSON.stringify(releases,null,2).slice(0,10000);d.append(pre);
+const links=[];const scan=(v,depth=0)=>{if(depth>6)return;if(typeof v==='string'){const u=safeUrl(v);if(u)links.push(u)}else if(v&&typeof v==='object')for(const [k,val] of Object.entries(v))if(/url|link|href|download|mirror/i.test(k))scan(val,depth+1);else if(typeof val==='object')scan(val,depth+1)};scan(releases);
+for(const url of [...new Set(links)]){const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Abrir fonte: '+new URL(url).hostname;d.append(a,document.createElement('br'))}
+}else{const msg=document.createElement('p');msg.textContent='Nenhum arquivo de versões disponível.';d.append(msg)}
+}catch(e){const p=document.createElement('p');p.textContent='Não foi possível carregar as fontes: '+e.message;d.append(p)}
+$('details').showModal();
+}
+$('close').onclick=()=>$('details').close();
+for(const id of ['search','platform','sort'])$(id).addEventListener(id==='search'?'input':'change',draw);
+draw();
+</script></html>
