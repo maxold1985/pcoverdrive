@@ -15,6 +15,7 @@ from uuid import uuid4
 
 JOBS = {}
 LOCK = threading.Lock()
+ROOT = Path(__file__).resolve().parent.parent
 DOWNLOAD_DIR = ROOT / 'downloads'
 MAX_JSON = 8192
 CUSTOM_FILE = ROOT / 'web' / 'data' / 'custom-games.json'
@@ -76,7 +77,6 @@ def run_download(job_id, url, game_id):
         job['status'] = 'erro'
         job['error'] = str(exc)
 
-ROOT = Path(__file__).resolve().parent.parent
 ID = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
 
 class Handler(SimpleHTTPRequestHandler):
