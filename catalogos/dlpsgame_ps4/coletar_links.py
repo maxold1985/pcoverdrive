@@ -127,7 +127,7 @@ def main():
             time.sleep(DELAY_SECONDS)
 
     diagnostics = {"estatisticas": dict(stats), "rejeitados": rejected}
-    (OUTPUT / "diagnostico.json").write_text(json.dumps(diagnostics, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    (OUTPUT / "diagnostico.json").write_text(json.dumps(diagnostics, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print("Diagnóstico:", dict(stats))
     if not records:
         print("Nenhum link encontrado; arquivos anteriores preservados.")
