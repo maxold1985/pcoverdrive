@@ -17,11 +17,16 @@ JOBS = {}
 LOCK = threading.Lock()
 DOWNLOAD_DIR = ROOT / 'downloads'
 MAX_JSON = 8192
+CUSTOM_FILE = ROOT / 'web' / 'data' / 'custom-games.json'
 
 def permitted_source(game_id, url):
     file = ROOT / 'app' / 'data' / 'releases' / (game_id + '.json')
     if not file.is_file():
-        return False
+        try:
+            games = json.loads(CUSTOM_FILE.read_text(encoding='utf-8'))
+            return any(g['id'] == game_id and g.get('downloadUrl') == url for g in games)
+        except (OSError,ValueError):
+            return False
     try:
         releases = json.loads(file.read_text(encoding='utf-8'))
     except (OSError, ValueError):
@@ -106,6 +111,18 @@ class Handler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
             return
+        if route == '/api/custom-games':
+            try:
+                data = CUSTOM_FILE.read_bytes() if CUSTOM_FILE.is_file() else b'[]'
+            except OSError:
+                self.send_error(500)
+                return
+            self.send_response(200)
+            self.send_header('Content-Type','application/json; charset=utf-8')
+            self.send_header('Content-Length',str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
         if route.startswith('/api/downloads/'):
             job_id = route.rsplit('/', 1)[-1]
             with LOCK:
@@ -123,6 +140,39 @@ class Handler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):
+        if self.headers.get('Origin') not in (None, 'http://127.0.0.1:8877'):
+            self.send_error(403)
+            return
+        if urlsplit(self.path).path == '/api/custom-games':
+            try:
+                size = int(self.headers.get('Content-Length','0'))
+                if not 0 < size <= MAX_JSON: raise ValueError('Tamanho invalido')
+                data = json.loads(self.rfile.read(size))
+                title = data['title'].strip()
+                game_id = data['id'].strip()
+                platform = data['platform'].lower()
+                url = data.get('url','').strip()
+                cover = data.get('cover','').strip()
+                if not 1 <= len(title) <= 180 or not ID.fullmatch(game_id) or platform not in ('ps4','ps5'): raise ValueError('Dados invalidos')
+                if url and urlparse(url).scheme != 'https': raise ValueError('URL precisa ser HTTPS')
+                if cover and urlparse(cover).scheme != 'https': raise ValueError('Capa precisa ser HTTPS')
+                CUSTOM_FILE.parent.mkdir(parents=True,exist_ok=True)
+                games = json.loads(CUSTOM_FILE.read_text(encoding='utf-8')) if CUSTOM_FILE.is_file() else []
+                if any(g['id'] == game_id for g in games): raise ValueError('ID ja cadastrado')
+                record = {'id':game_id,'title':title,'platform':platform,'art':{'cover':cover},'developer':'','publisher':'','providers':['manual'] if url else [],'downloadUrl':url}
+                games.append(record)
+                tmp = CUSTOM_FILE.with_suffix('.tmp')
+                tmp.write_text(json.dumps(games,ensure_ascii=False,indent=2),encoding='utf-8')
+                tmp.replace(CUSTOM_FILE)
+                payload = json.dumps(record).encode()
+                self.send_response(201)
+                self.send_header('Content-Type','application/json')
+                self.send_header('Content-Length',str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+            except (ValueError, KeyError, TypeError, OSError) as exc:
+                self.send_error(400,str(exc))
+            return
         if urlsplit(self.path).path != '/api/downloads':
             self.send_error(404)
             return
