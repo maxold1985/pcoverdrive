@@ -1,0 +1,2 @@
+internetarchive>=5,<7
+keyring>=25,<27
