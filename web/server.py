@@ -45,31 +45,43 @@ def run_download(job_id, url, game_id):
     target = DOWNLOAD_DIR / game_id
     try:
         target.mkdir(parents=True, exist_ok=True)
-        req = urllib.request.Request(url, headers={
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36',
-            'Accept': '*/*',
-            'Accept-Encoding': 'identity',
-            'Connection': 'close'
-        })
-        # No redirects to non-HTTPS protocols, private addresses or local endpoints.
-        with urllib.request.urlopen(req, timeout=35) as response:
-            final = urlparse(response.geturl())
-            if final.scheme != 'https' or not final.hostname or final.hostname.lower() in ('localhost', '127.0.0.1'):
+        parsed = urlparse(url)
+        archive = parsed.hostname in ('archive.org', 'www.archive.org')
+        response = None
+        if archive:
+            try:
+                from archive_auth import session as archive_session
+                client = archive_session()
+            except (ImportError, RuntimeError):
+                client = None
+            if client is not None:
+                response = client.get(url, stream=True, timeout=(20, 60), allow_redirects=True)
+                response.raise_for_status()
+        if response is None:
+            req = urllib.request.Request(url, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36',
+                'Accept': '*/*', 'Accept-Encoding': 'identity'
+            })
+            response = urllib.request.urlopen(req, timeout=60)
+        with response:
+            final_url = response.url if hasattr(response, 'url') else response.geturl()
+            final = urlparse(final_url)
+            if final.scheme != 'https' or not final.hostname:
                 raise ValueError('Redirecionamento nao permitido')
-            filename = Path(final.path).name or 'download.bin'
+            filename = Path(parsed.path).name or 'download.bin'
             filename = re.sub(r'[^A-Za-z0-9._-]', '_', unquote(filename))[:150]
             if filename in ('.', '..', ''): filename = 'download.bin'
             dest = target / filename
-            if dest.exists() or dest.with_suffix(dest.suffix + '.part').exists():
-                raise FileExistsError('Arquivo ja existe; remova ou renomeie antes de baixar')
             part = dest.with_suffix(dest.suffix + '.part')
+            if dest.exists() or part.exists():
+                raise FileExistsError('Arquivo ja existe')
             job['total'] = int(response.headers.get('Content-Length', 0) or 0)
             job['status'] = 'baixando'
             try:
                 with part.open('xb') as out:
-                    while True:
-                        chunk = response.read(1024 * 256)
-                        if not chunk: break
+                    chunks = response.iter_content(chunk_size=262144) if hasattr(response, 'iter_content') else iter(lambda: response.read(262144), b'')
+                    for chunk in chunks:
+                        if not chunk: continue
                         out.write(chunk)
                         job['received'] += len(chunk)
                 part.rename(dest)
@@ -78,12 +90,12 @@ def run_download(job_id, url, game_id):
                 raise
             job['status'] = 'concluido'
             job['file'] = str(dest)
-    except urllib.error.HTTPError as exc:
-        job['status'] = 'erro'
-        job['error'] = f'HTTP {exc.code} ({exc.reason}) em {exc.url}. Abra a fonte no navegador caso exija sessao.'
     except Exception as exc:
         job['status'] = 'erro'
-        job['error'] = str(exc)
+        if isinstance(exc, urllib.error.HTTPError):
+            job['error'] = f'HTTP {exc.code}: {exc.reason}'
+        else:
+            job['error'] = str(exc)
 
 ID = re.compile(r"^[A-Za-z0-9_-]{1,100}$")
 
