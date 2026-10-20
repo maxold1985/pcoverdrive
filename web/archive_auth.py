@@ -24,6 +24,26 @@ def session():
     config = saved_config()
     return ia.get_session(config=config) if config else None
 
+def login(email, password):
+    """Autentica com o cliente oficial; persiste somente a configuracao de sessao."""
+    if sys.platform != "win32":
+        raise RuntimeError("O armazenamento seguro esta habilitado somente no Windows.")
+    if not email or not password:
+        raise ValueError("Informe email e senha.")
+    _, keyring = dependencies()
+    from internetarchive.config import get_auth_config
+    config = get_auth_config(email, password)
+    if not config or not config.get("cookies"):
+        raise RuntimeError("Archive.org nao retornou cookies de sessao.")
+    keyring.set_password(SERVICE, ACCOUNT, json.dumps(config))
+
+def logout():
+    _, keyring = dependencies()
+    try:
+        keyring.delete_password(SERVICE, ACCOUNT)
+    except keyring.errors.PasswordDeleteError:
+        pass
+
 def main():
     if sys.platform != "win32":
         raise SystemExit("Este utilitario armazena credenciais no gerenciador seguro do sistema.")
@@ -33,19 +53,12 @@ def main():
         email = input("Email do Archive.org: ").strip()
         password = getpass.getpass("Senha (nao sera salva): ")
         try:
-            from internetarchive.config import get_auth_config
-            config = get_auth_config(email, password)
-            if not config or not config.get("cookies"):
-                raise RuntimeError("Archive.org nao retornou cookies de sessao. Login nao concluido.")
-            keyring.set_password(SERVICE, ACCOUNT, json.dumps(config))
+            login(email, password)
             print("Sessao salva no Windows Credential Manager.")
         finally:
             password = None
     elif command == "logout":
-        try:
-            keyring.delete_password(SERVICE, ACCOUNT)
-        except keyring.errors.PasswordDeleteError:
-            pass
+        logout()
         print("Sessao removida.")
     elif command == "status":
         config = saved_config()
