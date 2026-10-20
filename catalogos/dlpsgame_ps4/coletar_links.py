@@ -9,6 +9,7 @@ import json
 import re
 import time
 from html.parser import HTMLParser
+from collections import Counter
 from pathlib import Path
 from urllib.parse import urljoin, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
@@ -26,11 +27,17 @@ class LinkParser(HTMLParser):
         self.links = []
         self.href = None
         self.parts = []
+        self.image_alt = []
 
     def handle_starttag(self, tag, attrs):
         if tag.lower() == "a":
             self.href = dict(attrs).get("href")
             self.parts = []
+            self.image_alt = []
+        elif tag.lower() == "img" and self.href is not None:
+            alt = dict(attrs).get("alt", "")
+            if alt:
+                self.image_alt.append(alt)
 
     def handle_data(self, data):
         if self.href is not None:
@@ -38,7 +45,10 @@ class LinkParser(HTMLParser):
 
     def handle_endtag(self, tag):
         if tag.lower() == "a" and self.href is not None:
-            self.links.append((self.href, " ".join(" ".join(self.parts).split())))
+            title = " ".join(" ".join(self.parts).split())
+            if not title:
+                title = " ".join(" ".join(self.image_alt).split())
+            self.links.append((self.href, title))
             self.href = None
             self.parts = []
 
@@ -65,6 +75,8 @@ def main():
     args = ap.parse_args()
     records = []  # Preserva cada ocorrência, mesmo quando o URL se repete.
     pages = 0
+    stats = Counter()
+    rejected = []
     page_numbers = [1] if args.html else range(1, MAX_PAGES + 1)
     for page in page_numbers:
         url = BASE if page == 1 else urljoin(BASE, f"page/{page}/")
@@ -82,19 +94,31 @@ def main():
         parser = LinkParser()
         parser.feed(html)
         found = 0
+        stats["ancoras_html"] += len(parser.links)
         for href, title in parser.links:
             target = normalized(urljoin(url, href))
-            if not target or target == normalized(BASE):
-                continue
-            path = urlsplit(target).path
-            if re.fullmatch(r"/(?:list-all-game-ps4/)?page/\d+/", path):
-                continue
-            if path.startswith(("/category/", "/tag/", "/author/", "/wp-", "/feed/")):
-                continue
-            if not title or len(title) > 220:
+            reason = None
+            if not target:
+                reason = "dominio_ou_esquema"
+            elif target == normalized(BASE):
+                reason = "indice"
+            else:
+                path = urlsplit(target).path
+                if re.fullmatch(r"/(?:list-all-game-ps4/)?page/\\d+/", path):
+                    reason = "paginacao"
+                elif path.startswith(("/category/", "/tag/", "/author/", "/wp-", "/feed/")):
+                    reason = "navegacao"
+                elif not title:
+                    reason = "titulo_vazio"
+                elif len(title) > 220:
+                    reason = "titulo_longo"
+            if reason:
+                stats["rejeitado_" + reason] += 1
+                rejected.append({"motivo": reason, "titulo": title, "href": href})
                 continue
             records.append({"titulo": title, "url": target})
             found += 1
+            stats["aceitos"] += 1
         pages += 1
         print(f"Página {page}: {found} links novos; total {len(records)}")
         if not args.html and page > 1 and found == 0:
@@ -102,6 +126,9 @@ def main():
         if not args.html:
             time.sleep(DELAY_SECONDS)
 
+    diagnostics = {"estatisticas": dict(stats), "rejeitados": rejected}
+    (OUTPUT / "diagnostico.json").write_text(json.dumps(diagnostics, ensure_ascii=False, indent=2) + "\\n", encoding="utf-8")
+    print("Diagnóstico:", dict(stats))
     if not records:
         print("Nenhum link encontrado; arquivos anteriores preservados.")
         return
