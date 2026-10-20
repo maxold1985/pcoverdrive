@@ -4,7 +4,7 @@ cd /d "%~dp0.."
 where py >nul 2>&1
 if %errorlevel%==0 (
   start "" "http://127.0.0.1:8765/web/"
-  py -3 -m http.server 8765 --bind 127.0.0.1
+  py -3 web\server.py --port 8765
 ) else (
   where python >nul 2>&1
   if errorlevel 1 (
@@ -13,5 +13,6 @@ if %errorlevel%==0 (
     exit /b 1
   )
   start "" "http://127.0.0.1:8765/web/"
-  python -m http.server 8765 --bind 127.0.0.1
+  python web\server.py --port 8765
 )
+pause
