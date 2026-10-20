@@ -116,6 +116,8 @@ def main():
                 path = urlsplit(target).path
                 if re.fullmatch(r"/(?:list-all-game-ps4/)?page/\\d+/", path):
                     reason = "paginacao"
+                elif path == "/dmca/":
+                    reason = "pagina_institucional"
                 elif path in ("/list-all-game-ps2/", "/list-all-game-ps3/", "/list-game-ps5/"):
                     reason = "outras_plataformas"
                 elif path.startswith(("/category/", "/tag/", "/author/", "/wp-", "/feed/")):
