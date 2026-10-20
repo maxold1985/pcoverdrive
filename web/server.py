@@ -210,7 +210,9 @@ def main():
     parser.add_argument("--port", type=int, default=8877)
     parser.add_argument("--download-dir", type=Path, default=ROOT / "downloads", help="Pasta de downloads no Windows")
     args = parser.parse_args()
-    global DOWNLOAD_DIR\n    DOWNLOAD_DIR = args.download_dir.expanduser().resolve()\n    os.chdir(ROOT)
+    global DOWNLOAD_DIR
+    DOWNLOAD_DIR = args.download_dir.expanduser().resolve()
+    os.chdir(ROOT)
     with ThreadingHTTPServer(("127.0.0.1", args.port), Handler) as httpd:
         print(f"Overdrive PC: http://127.0.0.1:{args.port}/web/", flush=True)
         httpd.serve_forever()
