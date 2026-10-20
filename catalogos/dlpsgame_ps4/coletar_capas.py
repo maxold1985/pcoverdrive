@@ -64,6 +64,7 @@ def cover_url(page, html):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument("--importar-json", type=Path, help="Importa capas exportadas pelo navegador")
     ap.add_argument("--limite", type=int, default=20, help="Numero maximo de paginas por execucao; 0 para todas")
     ap.add_argument("--intervalo", type=float, default=2.0, help="Segundos entre requisicoes")
     args = ap.parse_args()
@@ -72,6 +73,33 @@ def main():
     records = json.loads(CATALOG.read_text(encoding="utf-8"))
     if not isinstance(records, list):
         ap.error("Catalogo invalido")
+    if args.importar_json:
+        imported = json.loads(args.importar_json.read_text(encoding="utf-8-sig"))
+        if not isinstance(imported, list):
+            ap.error("Arquivo deve conter uma lista JSON")
+        images = {}
+        for item in imported:
+            if not isinstance(item, dict):
+                continue
+            url, cover = item.get("url"), item.get("imagem")
+            if not isinstance(url, str) or not isinstance(cover, str):
+                continue
+            parts = urlsplit(cover)
+            if parts.scheme == "https" and parts.hostname:
+                images[url.rstrip("/")] = cover
+        updated = 0
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            cover = images.get(str(record.get("url", "")).rstrip("/"))
+            if cover and not record.get("imagem"):
+                record["imagem"] = cover
+                updated += 1
+        temp = CATALOG.with_suffix(".tmp")
+        temp.write_text(json.dumps(records, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        temp.replace(CATALOG)
+        print(f"Capas importadas: {updated}")
+        return
     count = success = 0
     cache = {x["url"]: x["imagem"] for x in records if isinstance(x, dict) and x.get("imagem") and x.get("url")}
     for index, record in enumerate(records):
