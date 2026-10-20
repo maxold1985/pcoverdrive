@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 DOWNLOAD_DIR = ROOT / 'downloads'
 MAX_JSON = 8192
 CUSTOM_FILE = ROOT / 'web' / 'data' / 'custom-games.json'
+DLPS_FILE = ROOT / 'catalogos' / 'dlpsgame_ps4' / 'jogos.json'
 
 def permitted_source(game_id, url):
     file = ROOT / 'app' / 'data' / 'releases' / (game_id + '.json')
@@ -138,6 +139,28 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(data)
+            return
+        if route == '/api/dlpsgame-games':
+            try:
+                source = json.loads(DLPS_FILE.read_text(encoding='utf-8')) if DLPS_FILE.is_file() else []
+                if not isinstance(source, list):
+                    raise ValueError('Catalogo invalido')
+                items = []
+                for index, entry in enumerate(source):
+                    if not isinstance(entry, dict):
+                        continue
+                    title, url = entry.get('titulo'), entry.get('url')
+                    if not isinstance(title, str) or not isinstance(url, str):
+                        continue
+                    parsed = urlparse(url)
+                    if parsed.scheme != 'https' or parsed.hostname not in ('dlpsgame.com', 'www.dlpsgame.com'):
+                        continue
+                    items.append({'id': f'DLPS{index:06d}', 'title': title[:180],
+                                  'platform': 'ps4', 'developer': '', 'providers': ['dlpsgame'],
+                                  'sourceUrl': url})
+                self.send_json(items)
+            except (OSError, ValueError, TypeError):
+                self.send_json({'error': 'Falha ao ler catalogo DLPSGame'}, 500)
             return
         if route == '/api/custom-games':
             try:
