@@ -157,7 +157,7 @@ class Handler(SimpleHTTPRequestHandler):
                         continue
                     items.append({'id': f'DLPS{index:06d}', 'title': title[:180],
                                   'platform': 'ps4', 'developer': '', 'providers': ['dlpsgame'],
-                                  'sourceUrl': url})
+                                  'sourceUrl': url, 'art': {'cover': entry.get('imagem', '') if isinstance(entry.get('imagem', ''), str) and urlparse(entry.get('imagem', '')).scheme == 'https' else ''}})
                 self.send_json(items)
             except (OSError, ValueError, TypeError):
                 self.send_json({'error': 'Falha ao ler catalogo DLPSGame'}, 500)
