@@ -17,6 +17,7 @@ $('archiveLogout').onclick=async()=>{try{const r=await fetch('/api/archive-auth/
 archiveStatus();
 const safeUrl=value=>{try{const u=new URL(value);return ['https:','http:'].includes(u.protocol)?u.href:null}catch{return null}};
 const list=Array.isArray(games)?[...games]:[];
+fetch('/api/dlpsgame-games').then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then(extra=>{if(Array.isArray(extra)){list.push(...extra);draw()}}).catch(e=>console.error('Catálogo DLPSGame:',e));
 fetch('/api/custom-games').then(r=>r.ok?r.json():[]).then(extra=>{if(Array.isArray(extra)){for(const g of extra)if(!list.some(item=>item.id===g.id))list.push(g);draw()}}).catch(console.error);
 $('addGame').onclick=()=>$('addDialog').showModal();
 $('cancelAdd').onclick=()=>$('addDialog').close();
@@ -39,6 +40,7 @@ $('grid').replaceChildren(fragment);
 async function show(g){
 const d=$('detail');d.replaceChildren();const h=document.createElement('h2');h.textContent=g.title;d.append(h);
 const p=document.createElement('p');p.textContent=`ID: ${g.id} · Fontes: ${(g.providers||[]).join(', ')||'não informadas'}`;d.append(p);
+if(g.sourceUrl){const a=document.createElement('a');a.href=safeUrl(g.sourceUrl)||'#';a.target='_blank';a.rel='noopener noreferrer';a.textContent='Abrir página do jogo no DLPSGame';d.append(a);$('details').showModal();return;}
 try{
 const response=await fetch(`/api/releases/${encodeURIComponent(g.id)}`);
 if(response.ok || g.downloadUrl){const releases=g.downloadUrl?[{url:g.downloadUrl,provider:'manual'}]:await response.json();const pre=document.createElement('pre');pre.style.whiteSpace='pre-wrap';pre.style.overflowWrap='anywhere';pre.textContent='Metadados das versões: '+JSON.stringify(releases,null,2).slice(0,10000);d.append(pre);
