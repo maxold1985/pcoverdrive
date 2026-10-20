@@ -61,8 +61,9 @@ def fetch(url):
 def main():
     ap = argparse.ArgumentParser(description="Coleta links públicos de páginas PS4")
     ap.add_argument("--html", type=Path, help="Arquivo HTML salvo pelo navegador")
+    ap.add_argument("--unicos", action="store_true", help="Opcional: remove URLs repetidas")
     args = ap.parse_args()
-    records = {}
+    records = []  # Preserva cada ocorrência, mesmo quando o URL se repete.
     pages = 0
     page_numbers = [1] if args.html else range(1, MAX_PAGES + 1)
     for page in page_numbers:
@@ -92,9 +93,8 @@ def main():
                 continue
             if not title or len(title) > 220:
                 continue
-            if target not in records:
-                records[target] = {"titulo": title, "url": target}
-                found += 1
+            records.append({"titulo": title, "url": target})
+            found += 1
         pages += 1
         print(f"Página {page}: {found} links novos; total {len(records)}")
         if not args.html and page > 1 and found == 0:
@@ -105,7 +105,10 @@ def main():
     if not records:
         print("Nenhum link encontrado; arquivos anteriores preservados.")
         return
-    ordered = sorted(records.values(), key=lambda item: item["titulo"].casefold())
+    if args.unicos:
+        seen = set()
+        records = [item for item in records if not (item["url"] in seen or seen.add(item["url"]))]
+    ordered = sorted(records, key=lambda item: item["titulo"].casefold())
     (OUTPUT / "jogos.json").write_text(json.dumps(ordered, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (OUTPUT / "links.txt").write_text("".join(item["url"] + "\n" for item in ordered), encoding="utf-8")
     print(f"Salvos {len(ordered)} links em {OUTPUT}. Páginas consultadas: {pages}")
