@@ -31,7 +31,7 @@ async function show(g){
 const d=$('detail');d.replaceChildren();const h=document.createElement('h2');h.textContent=g.title;d.append(h);
 const p=document.createElement('p');p.textContent=`ID: ${g.id} · Fontes: ${(g.providers||[]).join(', ')||'não informadas'}`;d.append(p);
 try{
-const response=await fetch(`../app/data/releases/${encodeURIComponent(g.id)}.json`);
+const response=await fetch(`/api/releases/${encodeURIComponent(g.id)}`);
 if(response.ok){const releases=await response.json();const pre=document.createElement('pre');pre.style.whiteSpace='pre-wrap';pre.style.overflowWrap='anywhere';pre.textContent='Metadados das versões: '+JSON.stringify(releases,null,2).slice(0,10000);d.append(pre);
 const links=[];const scan=(v,depth=0)=>{if(depth>6)return;if(typeof v==='string'){const u=safeUrl(v);if(u)links.push(u)}else if(v&&typeof v==='object')for(const [k,val] of Object.entries(v))if(/url|link|href|download|mirror/i.test(k))scan(val,depth+1);else if(typeof val==='object')scan(val,depth+1)};scan(releases);
 for(const url of [...new Set(links)]){const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Abrir fonte: '+new URL(url).hostname;d.append(a,document.createElement('br'))}
