@@ -72,15 +72,23 @@ def main():
     ap = argparse.ArgumentParser(description="Coleta links públicos de páginas PS4")
     ap.add_argument("--html", type=Path, help="Arquivo HTML salvo pelo navegador")
     ap.add_argument("--unicos", action="store_true", help="Opcional: remove URLs repetidas")
+    ap.add_argument("--dom-json", type=Path, help="JSON exportado do DOM do Edge com href e titulo")
     args = ap.parse_args()
     records = []  # Preserva cada ocorrência, mesmo quando o URL se repete.
     pages = 0
     stats = Counter()
     rejected = []
-    page_numbers = [1] if args.html else range(1, MAX_PAGES + 1)
+    if args.html and args.dom_json:
+        ap.error("Use --html ou --dom-json, não ambos")
+    page_numbers = [1] if (args.html or args.dom_json) else range(1, MAX_PAGES + 1)
     for page in page_numbers:
         url = BASE if page == 1 else urljoin(BASE, f"page/{page}/")
-        if args.html:
+        if args.dom_json:
+            raw = json.loads(args.dom_json.read_text(encoding="utf-8-sig"))
+            if not isinstance(raw, list):
+                ap.error("--dom-json deve conter uma lista JSON")
+            parsed_links = [(x.get("href", ""), x.get("titulo", "")) for x in raw if isinstance(x, dict)]
+        elif args.html:
             html = args.html.read_text(encoding="utf-8", errors="replace")
         else:
             try:
@@ -91,11 +99,13 @@ def main():
                     print("Nenhum arquivo foi sobrescrito. Salve a página no Edge e use --html arquivo.html")
                     return
                 break
-        parser = LinkParser()
-        parser.feed(html)
+        if not args.dom_json:
+            parser = LinkParser()
+            parser.feed(html)
+            parsed_links = parser.links
         found = 0
-        stats["ancoras_html"] += len(parser.links)
-        for href, title in parser.links:
+        stats["ancoras_html"] += len(parsed_links)
+        for href, title in parsed_links:
             target = normalized(urljoin(url, href))
             reason = None
             if not target:
@@ -121,9 +131,9 @@ def main():
             stats["aceitos"] += 1
         pages += 1
         print(f"Página {page}: {found} links novos; total {len(records)}")
-        if not args.html and page > 1 and found == 0:
+        if not (args.html or args.dom_json) and page > 1 and found == 0:
             break
-        if not args.html:
+        if not (args.html or args.dom_json):
             time.sleep(DELAY_SECONDS)
 
     diagnostics = {"estatisticas": dict(stats), "rejeitados": rejected}
