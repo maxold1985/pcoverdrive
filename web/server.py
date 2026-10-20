@@ -207,7 +207,8 @@ class Handler(SimpleHTTPRequestHandler):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--port", type=int, default=8877)\n    parser.add_argument("--download-dir", type=Path, default=ROOT / "downloads", help="Pasta de downloads no Windows")
+    parser.add_argument("--port", type=int, default=8877)
+    parser.add_argument("--download-dir", type=Path, default=ROOT / "downloads", help="Pasta de downloads no Windows")
     args = parser.parse_args()
     global DOWNLOAD_DIR\n    DOWNLOAD_DIR = args.download_dir.expanduser().resolve()\n    os.chdir(ROOT)
     with ThreadingHTTPServer(("127.0.0.1", args.port), Handler) as httpd:
