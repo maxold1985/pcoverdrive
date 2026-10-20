@@ -87,7 +87,7 @@ def main():
             raw = json.loads(args.dom_json.read_text(encoding="utf-8-sig"))
             if not isinstance(raw, list):
                 ap.error("--dom-json deve conter uma lista JSON")
-            parsed_links = [(x.get("href", ""), x.get("titulo", "")) for x in raw if isinstance(x, dict)]
+            parsed_links = [(x.get("href", ""), x.get("titulo", ""), x.get("imagem", "")) for x in raw if isinstance(x, dict)]
         elif args.html:
             html = args.html.read_text(encoding="utf-8", errors="replace")
         else:
@@ -102,10 +102,10 @@ def main():
         if not args.dom_json:
             parser = LinkParser()
             parser.feed(html)
-            parsed_links = parser.links
+            parsed_links = [(href, title, "") for href, title in parser.links]
         found = 0
         stats["ancoras_html"] += len(parsed_links)
-        for href, title in parsed_links:
+        for href, title, imagem in parsed_links:
             target = normalized(urljoin(url, href))
             reason = None
             if not target:
@@ -130,9 +130,15 @@ def main():
                 stats["rejeitado_" + reason] += 1
                 rejected.append({"motivo": reason, "titulo": title, "href": href})
                 continue
-            records.append({"titulo": title, "url": target})
+            image_url = urljoin(BASE, imagem) if isinstance(imagem, str) and imagem.strip() else ""
+            image_parts = urlsplit(image_url)
+            if image_parts.scheme != "https" or not image_parts.hostname:
+                image_url = ""
+            records.append({"titulo": title, "url": target, "imagem": image_url})
             found += 1
             stats["aceitos"] += 1
+            if image_url:
+                stats["com_imagem"] += 1
         pages += 1
         print(f"Página {page}: {found} links novos; total {len(records)}")
         if not (args.html or args.dom_json) and page > 1 and found == 0:
