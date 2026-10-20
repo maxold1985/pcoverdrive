@@ -242,7 +242,7 @@ class Handler(SimpleHTTPRequestHandler):
                 platform = data['platform'].lower()
                 url = data.get('url','').strip()
                 cover = data.get('cover','').strip()
-                if not 1 <= len(title) <= 180 or not ID.fullmatch(game_id) or platform not in ('ps4','ps5'): raise ValueError('Dados invalidos')
+                if not 1 <= len(title) <= 180 or not ID.fullmatch(game_id) or platform not in ('ps4','ps5','switch'): raise ValueError('Dados invalidos')
                 if url and urlparse(url).scheme != 'https': raise ValueError('URL precisa ser HTTPS')
                 if cover and urlparse(cover).scheme != 'https': raise ValueError('Capa precisa ser HTTPS')
                 CUSTOM_FILE.parent.mkdir(parents=True,exist_ok=True)
