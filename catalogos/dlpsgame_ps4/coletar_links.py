@@ -4,6 +4,7 @@
 Uso: py -3 catalogos/dlpsgame_ps4/coletar_links.py
 Dependências: apenas biblioteca padrão do Python.
 """
+import argparse
 import json
 import re
 import time
@@ -58,15 +59,25 @@ def fetch(url):
 
 
 def main():
+    ap = argparse.ArgumentParser(description="Coleta links públicos de páginas PS4")
+    ap.add_argument("--html", type=Path, help="Arquivo HTML salvo pelo navegador")
+    args = ap.parse_args()
     records = {}
     pages = 0
-    for page in range(1, MAX_PAGES + 1):
+    page_numbers = [1] if args.html else range(1, MAX_PAGES + 1)
+    for page in page_numbers:
         url = BASE if page == 1 else urljoin(BASE, f"page/{page}/")
-        try:
-            html = fetch(url)
-        except (HTTPError, URLError, TimeoutError) as exc:
-            print(f"Parando na página {page}: {exc}")
-            break
+        if args.html:
+            html = args.html.read_text(encoding="utf-8", errors="replace")
+        else:
+            try:
+                html = fetch(url)
+            except (HTTPError, URLError, TimeoutError) as exc:
+                print(f"Parando na página {page}: {exc}")
+                if page == 1:
+                    print("Nenhum arquivo foi sobrescrito. Salve a página no Edge e use --html arquivo.html")
+                    return
+                break
         parser = LinkParser()
         parser.feed(html)
         found = 0
@@ -86,10 +97,14 @@ def main():
                 found += 1
         pages += 1
         print(f"Página {page}: {found} links novos; total {len(records)}")
-        if page > 1 and found == 0:
+        if not args.html and page > 1 and found == 0:
             break
-        time.sleep(DELAY_SECONDS)
+        if not args.html:
+            time.sleep(DELAY_SECONDS)
 
+    if not records:
+        print("Nenhum link encontrado; arquivos anteriores preservados.")
+        return
     ordered = sorted(records.values(), key=lambda item: item["titulo"].casefold())
     (OUTPUT / "jogos.json").write_text(json.dumps(ordered, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     (OUTPUT / "links.txt").write_text("".join(item["url"] + "\n" for item in ordered), encoding="utf-8")
