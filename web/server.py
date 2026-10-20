@@ -105,6 +105,14 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         route = urlsplit(self.path).path
+        if route == '/api/archive-auth/status':
+            try:
+                from archive_auth import saved_config
+                payload = {'authenticated': bool(saved_config())}
+            except Exception:
+                payload = {'authenticated': False}
+            self.send_json(payload)
+            return
         if route == "/":
             self.send_response(302)
             self.send_header("Location", "/web/")
@@ -159,9 +167,47 @@ class Handler(SimpleHTTPRequestHandler):
             return
         super().do_GET()
 
+    def send_json(self, value, status=200):
+        payload = json.dumps(value).encode('utf-8')
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Content-Length', str(len(payload)))
+        self.send_header('Cache-Control', 'no-store')
+        self.end_headers()
+        self.wfile.write(payload)
+
     def do_POST(self):
         if self.headers.get('Origin') not in (None, 'http://127.0.0.1:8877'):
             self.send_error(403)
+            return
+        if urlsplit(self.path).path in ('/api/archive-auth/login', '/api/archive-auth/logout'):
+            # Only requests from this local app are accepted; never log credentials.
+            if self.headers.get('Origin') != 'http://127.0.0.1:8877':
+                self.send_error(403, 'Origem nao autorizada')
+                return
+            if self.headers.get('Content-Type', '').split(';')[0].strip() != 'application/json':
+                self.send_error(415, 'JSON obrigatorio')
+                return
+            try:
+                size = int(self.headers.get('Content-Length', '0'))
+                if not 0 < size <= MAX_JSON:
+                    raise ValueError('Tamanho invalido')
+                data = json.loads(self.rfile.read(size))
+                from archive_auth import login, logout
+                if urlsplit(self.path).path.endswith('/logout'):
+                    logout()
+                    self.send_json({'authenticated': False})
+                else:
+                    email = data.get('email', '')
+                    password = data.get('password', '')
+                    if not isinstance(email, str) or not isinstance(password, str):
+                        raise ValueError('Credenciais invalidas')
+                    login(email.strip(), password)
+                    self.send_json({'authenticated': True})
+            except (ValueError, KeyError, TypeError) as exc:
+                self.send_json({'error': str(exc)}, 400)
+            except Exception:
+                self.send_json({'error': 'Falha na autenticacao. Verifique credenciais, conexao e dependencias Python.'}, 502)
             return
         if urlsplit(self.path).path == '/api/custom-games':
             try:
